@@ -54,7 +54,7 @@ void renderFloor(int wallBottomPixel, color_t *texelColor, int x)
 
 		*texelColor = wallTextures[4].
 					  texture_buffer[(texture_width * textureOffsetY) + textureOffsetX];
-		drawPixel(x, y, *texelColor);
+		drawPixel(x, i, *texelColor);
 	}
 }
 
@@ -76,7 +76,7 @@ void renderCeil(int wallTopPixel, color_t *texelColor, int x)
 	{
 		float distance, ratio;
 
-		ratio = player.height / (y - SCREEN_HEIGHT / 2);
+		ratio = player.height / (i - SCREEN_HEIGHT / 2);
 		distance = (ratio * PROJ_PLANE)
 					/ cos(rays[x].rayAngle - player.rotationAngle);
 
@@ -90,7 +90,7 @@ void renderCeil(int wallTopPixel, color_t *texelColor, int x)
 
 		*texelColor = wallTextures[6].
 					  texture_buffer[(texture_width * textureOffsetY) + textureOffsetX];
-		drawPixel(x, y, *texelColor);
+		drawPixel(x, i, *texelColor);
 
 	}
 }
@@ -141,3 +141,4 @@ void renderWall(void)
 			drawPixel(x, w, texelColor);
 		}
 	}
+}
