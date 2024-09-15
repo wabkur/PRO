@@ -121,12 +121,12 @@ static const unsigned DISTANCE_BASE[30] = {
 	769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577
 };
 
-static const unsigned DISTANCE_EXTRA[30] = {
+static const unsigned DISTANCE_EXTRA[30] = {	/*the extra bits of backwards distances (added to base) */
 	0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10,
 	11, 11, 12, 12, 13, 13
 };
 
-static const unsigned CLCL[NUM_CODE_LENGTH_CODES]
+static const unsigned CLCL[NUM_CODE_LENGTH_CODES]	/*the order in which "code length alphabet code lengths" are stored, out of this the huffman tree of the dynamic huffman tree lengths is generated */
 = { 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15 };
 
 static const unsigned FIXED_DEFLATE_CODE_TREE[NUM_DEFLATE_CODE_SYMBOLS * 2] = {
@@ -185,13 +185,13 @@ static unsigned char read_bit(unsigned long *bitpointer, const unsigned char *bi
 
 static unsigned read_bits(unsigned long *bitpointer, const unsigned char *bitstream, unsigned long nbits)
 {
-	unsigned result = 0, w;
-	for (w = 0; w < nbits; w++)
-		result |= ((unsigned)read_bit(bitpointer, bitstream)) << w;
+	unsigned result = 0, i;
+	for (i = 0; i < nbits; i++)
+		result |= ((unsigned)read_bit(bitpointer, bitstream)) << i;
 	return result;
 }
 
-/* The buffer must be numcodes*2 in size! */
+/* the buffer must be numcodes*2 in size! */
 static void huffman_tree_init(huffman_tree* tree, unsigned* buffer, unsigned numcodes, unsigned maxbitlen)
 {
 	tree->tree2d = buffer;
@@ -200,59 +200,59 @@ static void huffman_tree_init(huffman_tree* tree, unsigned* buffer, unsigned num
 	tree->maxbitlen = maxbitlen;
 }
 
-/* Given the code lengths as stored in the PNG file.
-* maxbitlen is the maximum bits that code in tree can have. return value error.*/
-
+/*given the code lengths (as stored in the PNG file), generate the tree as defined by Deflate. maxbitlen is the maximum bits that a code in the tree can have. return value is error.*/
 static void huffman_tree_create_lengths(upng_t* upng, huffman_tree* tree, const unsigned *bitlen)
 {
 	unsigned tree1d[MAX_SYMBOLS];
 	unsigned blcount[MAX_BIT_LENGTH];
 	unsigned nextcode[MAX_BIT_LENGTH+1];
-	unsigned bits, n, w;
-	unsigned nodefilled = 0;
-	unsigned treepos = 0;
+	unsigned bits, n, i;
+	unsigned nodefilled = 0;	/*up to which node it is filled */
+	unsigned treepos = 0;	/*position in the tree (1 of the numcodes columns) */
 
-	/* Initialize the local vectors */
+	/* initialize local vectors */
 	memset(blcount, 0, sizeof(blcount));
 	memset(nextcode, 0, sizeof(nextcode));
 
-	/*step 1: count number of instances each code length */
+	/*step 1: count number of instances of each code length */
 	for (bits = 0; bits < tree->numcodes; bits++) {
 		blcount[bitlen[bits]]++;
 	}
 
-	/*step 2: Generate the nextcode values */
+	/*step 2: generate the nextcode values */
 	for (bits = 1; bits <= tree->maxbitlen; bits++) {
 		nextcode[bits] = (nextcode[bits - 1] + blcount[bits - 1]) << 1;
 	}
 
-	/*step 3: Generate all the codes */
+	/*step 3: generate all the codes */
 	for (n = 0; n < tree->numcodes; n++) {
 		if (bitlen[n] != 0) {
 			tree1d[n] = nextcode[bitlen[n]]++;
 		}
 	}
 
-	/* Convert tree1d[] to tree2d[][]. The internal nodes are stored. */
+	/*convert tree1d[] to tree2d[][]. In the 2D array, a value of 32767 means uninited, a value >= numcodes is an address to another bit, a value < numcodes is a code. The 2 rows are the 2 possible bit values (0 or 1), there are as many columns as codes - 1
+	   a good huffmann tree has N * 2 - 1 nodes, of which N - 1 are internal nodes. Here, the internal nodes are stored (what their 0 and 1 option point to). There is only memory for such good tree currently, if there are more nodes (due to too long length codes), error 55 will happen */
 	for (n = 0; n < tree->numcodes * 2; n++) {
-		tree->tree2d[n] = 32767;
+		tree->tree2d[n] = 32767;	/*32767 here means the tree2d isn't filled there yet */
 	}
 
-	for (n = 0; n < tree->numcodes; n++) {
-		for (w = 0; w < bitlen[n]; w++) {
-			unsigned char bit = (unsigned char)((tree1d[n] >> (bitlen[n] - w - 1)) & 1);
+	for (n = 0; n < tree->numcodes; n++) {	/*the codes */
+		for (i = 0; i < bitlen[n]; i++) {	/*the bits for this code */
+			unsigned char bit = (unsigned char)((tree1d[n] >> (bitlen[n] - i - 1)) & 1);
+			/* check if oversubscribed */
 			if (treepos > tree->numcodes - 2) {
 				SET_ERROR(upng, UPNG_EMALFORMED);
 				return;
 			}
 
-			if (tree->tree2d[2 * treepos + bit] == 32767) {	
-				if (w+ 1 == bitlen[n]) {
-					tree->tree2d[2 * treepos + bit] = n;
+			if (tree->tree2d[2 * treepos + bit] == 32767) {	/*not yet filled in */
+				if (i + 1 == bitlen[n]) {	/*last bit */
+					tree->tree2d[2 * treepos + bit] = n;	/*put the current code in it */
 					treepos = 0;
-				} else {
+				} else {	/*put address of the next step in here, first that address has to be found of course (it's just nodefilled + 1)... */
 					nodefilled++;
-					tree->tree2d[2 * treepos + bit] = nodefilled + tree->numcodes;
+					tree->tree2d[2 * treepos + bit] = nodefilled + tree->numcodes;	/*addresses encoded with numcodes added to it */
 					treepos = nodefilled;
 				}
 			} else {
@@ -263,7 +263,7 @@ static void huffman_tree_create_lengths(upng_t* upng, huffman_tree* tree, const 
 
 	for (n = 0; n < tree->numcodes * 2; n++) {
 		if (tree->tree2d[n] == 32767) {
-			tree->tree2d[n] = 0;
+			tree->tree2d[n] = 0;	/*remove possible remaining 32767's */
 		}
 	}
 }
@@ -272,7 +272,8 @@ static unsigned huffman_decode_symbol(upng_t *upng, const unsigned char *in, uns
 {
 	unsigned treepos = 0, ct;
 	unsigned char bit;
-	for (;;) { 
+	for (;;) {
+		/* error: end of input memory reached without endcode */
 		if (((*bp) & 0x07) == 0 && ((*bp) >> 3) > inlength) {
 			SET_ERROR(upng, UPNG_EMALFORMED);
 			return 0;
@@ -293,15 +294,15 @@ static unsigned huffman_decode_symbol(upng_t *upng, const unsigned char *in, uns
 	}
 }
 
-/* Get the tree of a deflated block with a dynamic tree */
+/* get the tree of a deflated block with dynamic tree, the tree itself is also Huffman compressed with a known tree*/
 static void get_tree_inflate_dynamic(upng_t* upng, huffman_tree* codetree, huffman_tree* codetreeD, huffman_tree* codelengthcodetree, const unsigned char *in, unsigned long *bp, unsigned long inlength)
 {
 	unsigned codelengthcode[NUM_CODE_LENGTH_CODES];
 	unsigned bitlen[NUM_DEFLATE_CODE_SYMBOLS];
 	unsigned bitlenD[NUM_DISTANCE_SYMBOLS];
-	unsigned n, hlit, hdist, hclen, w;
+	unsigned n, hlit, hdist, hclen, i;
 
-	/* Make sure that the length values that aren't filled in will be zero, or a wrong tree will be generated */
+	/*make sure that length values that aren't filled in will be 0, or a wrong tree will be generated */
 	/*C-code note: use no "return" between ctor and dtor of an uivector! */
 	if ((*bp) >> 3 >= inlength - 2) {
 		SET_ERROR(upng, UPNG_EMALFORMED);
@@ -312,96 +313,101 @@ static void get_tree_inflate_dynamic(upng_t* upng, huffman_tree* codetree, huffm
 	memset(bitlen, 0, sizeof(bitlen));
 	memset(bitlenD, 0, sizeof(bitlenD));
 
-	/* The bit pointer will go past the memory */
-	hlit = read_bits(bp, in, 5) + 257;
-	hdist = read_bits(bp, in, 5) + 1;
-	hclen = read_bits(bp, in, 4) + 4;
+	/*the bit pointer is or will go past the memory */
+	hlit = read_bits(bp, in, 5) + 257;	/*number of literal/length codes + 257. Unlike the spec, the value 257 is added to it here already */
+	hdist = read_bits(bp, in, 5) + 1;	/*number of distance codes. Unlike the spec, the value 1 is added to it here already */
+	hclen = read_bits(bp, in, 4) + 4;	/*number of code length codes. Unlike the spec, the value 4 is added to it here already */
 
-	for (w = 0; w < NUM_CODE_LENGTH_CODES; w++) {
-		if (w < hclen) {
-			codelengthcode[CLCL[w]] = read_bits(bp, in, 3);
+	for (i = 0; i < NUM_CODE_LENGTH_CODES; i++) {
+		if (i < hclen) {
+			codelengthcode[CLCL[i]] = read_bits(bp, in, 3);
 		} else {
-			codelengthcode[CLCL[w]] = 0;
+			codelengthcode[CLCL[i]] = 0;	/*if not, it must stay 0 */
 		}
 	}
 
 	huffman_tree_create_lengths(upng, codelengthcodetree, codelengthcode);
 
+	/* bail now if we encountered an error earlier */
 	if (upng->error != UPNG_EOK) {
 		return;
 	}
 
-	/* use this tree to read the lengths for the tree this function will return */
-	w = 0;
-	while (w < hlit + hdist) {
+	/*now we can use this tree to read the lengths for the tree that this function will return */
+	i = 0;
+	while (i < hlit + hdist) {	/*i is the current symbol we're reading in the part that contains the code lengths of lit/len codes and dist codes */
 		unsigned code = huffman_decode_symbol(upng, in, bp, codelengthcodetree, inlength);
 		if (upng->error != UPNG_EOK) {
 			break;
 		}
 
-		if (code <= 15) {
-			if (w < hlit) {
-				bitlen[w] = code;
+		if (code <= 15) {	/*a length code */
+			if (i < hlit) {
+				bitlen[i] = code;
 			} else {
-				bitlenD[w - hlit] = code;
+				bitlenD[i - hlit] = code;
 			}
-			w++;
-		} else if (code == 16) {
-			unsigned replength = 3;
-			unsigned value;
+			i++;
+		} else if (code == 16) {	/*repeat previous */
+			unsigned replength = 3;	/*read in the 2 bits that indicate repeat length (3-6) */
+			unsigned value;	/*set value to the previous code */
 
 			if ((*bp) >> 3 >= inlength) {
 				SET_ERROR(upng, UPNG_EMALFORMED);
 				break;
 			}
+			/*error, bit pointer jumps past memory */
 			replength += read_bits(bp, in, 2);
 
-			if ((w - 1) < hlit) {
-				value = bitlen[w - 1];
+			if ((i - 1) < hlit) {
+				value = bitlen[i - 1];
 			} else {
-				value = bitlenD[w - hlit - 1];
+				value = bitlenD[i - hlit - 1];
 			}
 
-			/* Repeat the value in the next lengths */
+			/*repeat this value in the next lengths */
 			for (n = 0; n < replength; n++) {
-				if (w >= hlit + hdist) {
+				/* i is larger than the amount of codes */
+				if (i >= hlit + hdist) {
 					SET_ERROR(upng, UPNG_EMALFORMED);
 					break;
 				}
 
-				if (w < hlit) {
-					bitlen[w] = value;
+				if (i < hlit) {
+					bitlen[i] = value;
 				} else {
-					bitlenD[w - hlit] = value;
+					bitlenD[i - hlit] = value;
 				}
-				w++;
+				i++;
 			}
-		} else if (code == 17) {
-			unsigned replength = 3;
+		} else if (code == 17) {	/*repeat "0" 3-10 times */
+			unsigned replength = 3;	/*read in the bits that indicate repeat length */
 			if ((*bp) >> 3 >= inlength) {
 				SET_ERROR(upng, UPNG_EMALFORMED);
 				break;
 			}
 
-			/* Error, Bit pointer jumps past memory */
+			/*error, bit pointer jumps past memory */
 			replength += read_bits(bp, in, 3);
 
-			/*repeat the value in the next lengths */
+			/*repeat this value in the next lengths */
 			for (n = 0; n < replength; n++) {
-				if (w >= hlit + hdist) {
+				/* error: i is larger than the amount of codes */
+				if (i >= hlit + hdist) {
 					SET_ERROR(upng, UPNG_EMALFORMED);
 					break;
 				}
 
-				if (w < hlit) {
-					bitlen[w] = 0;
+				if (i < hlit) {
+					bitlen[i] = 0;
 				} else {
-					bitlenD[w - hlit] = 0;
+					bitlenD[i - hlit] = 0;
 				}
-				w++;
+				i++;
 			}
-		} else if (code == 18) {
-			unsigned replength = 11;
+		} else if (code == 18) {	/*repeat "0" 11-138 times */
+			unsigned replength = 11;	/*read in the bits that indicate repeat length */
+			/* error, bit pointer jumps past memory */
 			if ((*bp) >> 3 >= inlength) {
 				SET_ERROR(upng, UPNG_EMALFORMED);
 				break;
@@ -409,18 +415,21 @@ static void get_tree_inflate_dynamic(upng_t* upng, huffman_tree* codetree, huffm
 
 			replength += read_bits(bp, in, 7);
 
+			/*repeat this value in the next lengths */
 			for (n = 0; n < replength; n++) {
-				if (w >= hlit + hdist) {
+				/* i is larger than the amount of codes */
+				if (i >= hlit + hdist) {
 					SET_ERROR(upng, UPNG_EMALFORMED);
 					break;
 				}
-				if (w < hlit)
-					bitlen[w] = 0;
+				if (i < hlit)
+					bitlen[i] = 0;
 				else
-					bitlenD[w - hlit] = 0;
-				w++;
+					bitlenD[i - hlit] = 0;
+				i++;
 			}
 		} else {
+			/* somehow an unexisting code appeared. This can never happen. */
 			SET_ERROR(upng, UPNG_EMALFORMED);
 			break;
 		}
@@ -430,8 +439,8 @@ static void get_tree_inflate_dynamic(upng_t* upng, huffman_tree* codetree, huffm
 		SET_ERROR(upng, UPNG_EMALFORMED);
 	}
 
-	/*The length of the end code 256 must be greather than 0 */
-	/* Finally got hlit and hdist, so generating the code trees and function is done */
+	/*the length of the end code 256 must be larger than 0 */
+	/*now we've finally got hlit and hdist, so generate the code trees, and the function is done */
 	if (upng->error == UPNG_EOK) {
 		huffman_tree_create_lengths(upng, codetree, bitlen);
 	}
@@ -440,7 +449,7 @@ static void get_tree_inflate_dynamic(upng_t* upng, huffman_tree* codetree, huffm
 	}
 }
 
-/*inflate block with dynamic of a fixed Huffman trees */
+/*inflate a block with dynamic of fixed Huffman tree*/
 static void inflate_huffman(upng_t* upng, unsigned char* out, unsigned long outsize, const unsigned char *in, unsigned long *bp, unsigned long *pos, unsigned long inlength, unsigned btype)
 {
 	unsigned codetree_buffer[DEFLATE_CODE_BUFFER_SIZE];
@@ -451,9 +460,11 @@ static void inflate_huffman(upng_t* upng, unsigned char* out, unsigned long outs
 	huffman_tree codetreeD;
 
 	if (btype == 1) {
+		/* fixed trees */
 		huffman_tree_init(&codetree, (unsigned*)FIXED_DEFLATE_CODE_TREE, NUM_DEFLATE_CODE_SYMBOLS, DEFLATE_CODE_BITLEN);
 		huffman_tree_init(&codetreeD, (unsigned*)FIXED_DISTANCE_TREE, NUM_DISTANCE_SYMBOLS, DISTANCE_BITLEN);
 	} else if (btype == 2) {
+		/* dynamic trees */
 		unsigned codelengthcodetree_buffer[CODE_LENGTH_BUFFER_SIZE];
 		huffman_tree codelengthcodetree;
 
@@ -470,8 +481,10 @@ static void inflate_huffman(upng_t* upng, unsigned char* out, unsigned long outs
 		}
 
 		if (code == 256) {
+			/* end code */
 			done = 1;
 		} else if (code <= 255) {
+			/* literal symbol */
 			if ((*pos) >= outsize) {
 				SET_ERROR(upng, UPNG_EMALFORMED);
 				return;
@@ -480,28 +493,28 @@ static void inflate_huffman(upng_t* upng, unsigned char* out, unsigned long outs
 			/* store output */
 			out[(*pos)++] = (unsigned char)(code);
 		} else if (code >= FIRST_LENGTH_CODE_INDEX && code <= LAST_LENGTH_CODE_INDEX) {	/*length code */
-			/* part A: Get the length base */
+			/* part 1: get length base */
 			unsigned long length = LENGTH_BASE[code - FIRST_LENGTH_CODE_INDEX];
 			unsigned codeD, distance, numextrabitsD;
 			unsigned long start, forward, backward, numextrabits;
 
-			/* part B: Get extra bits and add the value of that to length */
+			/* part 2: get extra bits and add the value of that to length */
 			numextrabits = LENGTH_EXTRA[code - FIRST_LENGTH_CODE_INDEX];
-			
-			/* Error, the bit pointer will jump past memory */
+
+			/* error, bit pointer will jump past memory */
 			if (((*bp) >> 3) >= inlength) {
 				SET_ERROR(upng, UPNG_EMALFORMED);
 				return;
 			}
 			length += read_bits(bp, in, numextrabits);
 
-			/*part C: Get the distance code */
+			/*part 3: get distance code */
 			codeD = huffman_decode_symbol(upng, in, bp, &codetreeD, inlength);
 			if (upng->error != UPNG_EOK) {
 				return;
 			}
 
-			/* Invalid distance code (30-31 are never used) */
+			/* invalid distance code (30-31 are never used) */
 			if (codeD > 29) {
 				SET_ERROR(upng, UPNG_EMALFORMED);
 				return;
@@ -509,10 +522,10 @@ static void inflate_huffman(upng_t* upng, unsigned char* out, unsigned long outs
 
 			distance = DISTANCE_BASE[codeD];
 
-			/*part D: Get extra bits from the distance */
+			/*part 4: get extra bits from distance */
 			numextrabitsD = DISTANCE_EXTRA[codeD];
 
-			/* Error, bit pointer will jump past memory */
+			/* error, bit pointer will jump past memory */
 			if (((*bp) >> 3) >= inlength) {
 				SET_ERROR(upng, UPNG_EMALFORMED);
 				return;
@@ -520,7 +533,7 @@ static void inflate_huffman(upng_t* upng, unsigned char* out, unsigned long outs
 
 			distance += read_bits(bp, in, numextrabitsD);
 
-			/*part E: Fill in all the out[n] values based on the length and distance */
+			/*part 5: fill in all the out[n] values based on the length and dist */
 			start = (*pos);
 			backward = start - distance;
 
@@ -550,9 +563,9 @@ static void inflate_uncompressed(upng_t* upng, unsigned char* out, unsigned long
 	while (((*bp) & 0x7) != 0) {
 		(*bp)++;
 	}
-	p = (*bp) / 8;
+	p = (*bp) / 8;		/*byte position */
 
-	/* Read len and nlen */
+	/* read len (2 bytes) and nlen (2 bytes) */
 	if (p >= inlength - 4) {
 		SET_ERROR(upng, UPNG_EMALFORMED);
 		return;
@@ -563,7 +576,7 @@ static void inflate_uncompressed(upng_t* upng, unsigned char* out, unsigned long
 	nlen = in[p] + 256 * in[p + 1];
 	p += 2;
 
-	/* check if 16-bit nlen is one's complement of a len */
+	/* check if 16-bit nlen is really the one's complement of len */
 	if (len + nlen != 65535) {
 		SET_ERROR(upng, UPNG_EMALFORMED);
 		return;
@@ -574,7 +587,7 @@ static void inflate_uncompressed(upng_t* upng, unsigned char* out, unsigned long
 		return;
 	}
 
-	/* Read the literal data */
+	/* read the literal data: len bytes are now stored in the out buffer */
 	if (p + len > inlength) {
 		SET_ERROR(upng, UPNG_EMALFORMED);
 		return;
@@ -667,50 +680,50 @@ static int paeth_predictor(int a, int b, int c)
 
 static void unfilter_scanline(upng_t* upng, unsigned char *recon, const unsigned char *scanline, const unsigned char *precon, unsigned long bytewidth, unsigned char filterType, unsigned long length)
 {
-	unsigned long r;
+	unsigned long i;
 	switch (filterType) {
 	case 0:
-		for (r = 0; r < length; r++)
-			recon[r] = scanline[r];
+		for (i = 0; i < length; i++)
+			recon[i] = scanline[i];
 		break;
 	case 1:
-		for (r = 0; r < bytewidth; r++)
-			recon[r] = scanline[r];
-		for (r = bytewidth; r < length; r++)
-			recon[r] = scanline[r] + recon[r - bytewidth];
+		for (i = 0; i < bytewidth; i++)
+			recon[i] = scanline[i];
+		for (i = bytewidth; i < length; i++)
+			recon[i] = scanline[i] + recon[i - bytewidth];
 		break;
 	case 2:
 		if (precon)
-			for (r = 0; r < length; r++)
-				recon[r] = scanline[r] + precon[r];
+			for (i = 0; i < length; i++)
+				recon[i] = scanline[i] + precon[i];
 		else
-			for (r = 0; r < length; r++)
-				recon[r] = scanline[r];
+			for (i = 0; i < length; i++)
+				recon[i] = scanline[i];
 		break;
 	case 3:
 		if (precon) {
-			for (r = 0; r < bytewidth; r++)
-				recon[r] = scanline[r] + precon[r] / 2;
-			for (r = bytewidth; r < length; r++)
-				recon[r] = scanline[r] + ((recon[r - bytewidth] + precon[r]) / 2);
+			for (i = 0; i < bytewidth; i++)
+				recon[i] = scanline[i] + precon[i] / 2;
+			for (i = bytewidth; i < length; i++)
+				recon[i] = scanline[i] + ((recon[i - bytewidth] + precon[i]) / 2);
 		} else {
-			for (r = 0; r < bytewidth; r++)
-				recon[r] = scanline[r];
-			for (r = bytewidth; r < length; r++)
-				recon[r] = scanline[r] + recon[r - bytewidth] / 2;
+			for (i = 0; i < bytewidth; i++)
+				recon[i] = scanline[i];
+			for (i = bytewidth; i < length; i++)
+				recon[i] = scanline[i] + recon[i - bytewidth] / 2;
 		}
 		break;
 	case 4:
 		if (precon) {
-			for (r = 0; r < bytewidth; r++)
-				recon[r] = (unsigned char)(scanline[r] + paeth_predictor(0, precon[r], 0));
-			for (r = bytewidth; r < length; r++)
-				recon[r] = (unsigned char)(scanline[r] + paeth_predictor(recon[r - bytewidth], precon[r], precon[r - bytewidth]));
+			for (i = 0; i < bytewidth; i++)
+				recon[i] = (unsigned char)(scanline[i] + paeth_predictor(0, precon[i], 0));
+			for (i = bytewidth; i < length; i++)
+				recon[i] = (unsigned char)(scanline[i] + paeth_predictor(recon[i - bytewidth], precon[i], precon[i - bytewidth]));
 		} else {
-			for (r = 0; r < bytewidth; r++)
-				recon[r] = scanline[r];
-			for (r = bytewidth; r < length; r++)
-				recon[r] = (unsigned char)(scanline[r] + paeth_predictor(recon[r - bytewidth], 0, 0));
+			for (i = 0; i < bytewidth; i++)
+				recon[i] = scanline[i];
+			for (i = bytewidth; i < length; i++)
+				recon[i] = (unsigned char)(scanline[i] + paeth_predictor(recon[i - bytewidth], 0, 0));
 		}
 		break;
 	default:
@@ -719,17 +732,17 @@ static void unfilter_scanline(upng_t* upng, unsigned char *recon, const unsigned
 	}
 }
 
-static void unfilter(upng_t* upng, unsigned char *out, const unsigned char *in, unsigned w, unsigned s, unsigned bpp)
+static void unfilter(upng_t* upng, unsigned char *out, const unsigned char *in, unsigned w, unsigned h, unsigned bpp)
 {
-	unsigned p;
+	unsigned y;
 	unsigned char *prevline = 0;
 
 	unsigned long bytewidth = (bpp + 7) / 8;
 	unsigned long linebytes = (w * bpp + 7) / 8;
 
-	for (p = 0; p < s; p++) {
-		unsigned long outindex = linebytes * p;
-		unsigned long inindex = (1 + linebytes) * p;
+	for (y = 0; y < h; y++) {
+		unsigned long outindex = linebytes * y;
+		unsigned long inindex = (1 + linebytes) * y;
 		unsigned char filterType = in[inindex];
 
 		unfilter_scanline(upng, &out[outindex], &in[inindex + 1], prevline, bytewidth, filterType, linebytes);
@@ -743,10 +756,10 @@ static void unfilter(upng_t* upng, unsigned char *out, const unsigned char *in, 
 
 static void remove_padding_bits(unsigned char *out, const unsigned char *in, unsigned long olinebits, unsigned long ilinebits, unsigned h)
 {
-	unsigned t;
+	unsigned y;
 	unsigned long diff = ilinebits - olinebits;
-	unsigned long obp = 0, ibp = 0;
-	for (t = 0; t < h; t++) {
+	unsigned long obp = 0, ibp = 0;	/*bit pointers */
+	for (y = 0; y < h; y++) {
 		unsigned long x;
 		for (x = 0; x < olinebits; x++) {
 			unsigned char bit = (unsigned char)((in[(ibp) >> 3] >> (7 - ((ibp) & 0x7))) & 1);
@@ -762,26 +775,26 @@ static void remove_padding_bits(unsigned char *out, const unsigned char *in, uns
 	}
 }
 
-/* The out must be buffer big enough to contain full image and contain the full decompressed data of  IDAT chunks*/
+/*out must be buffer big enough to contain full image, and in must contain the full decompressed data from the IDAT chunks*/
 static void post_process_scanlines(upng_t* upng, unsigned char *out, unsigned char *in, const upng_t* info_png)
 {
 	unsigned bpp = upng_get_bpp(info_png);
-	unsigned a = info_png->width;
-	unsigned m = info_png->height;
+	unsigned w = info_png->width;
+	unsigned h = info_png->height;
 
 	if (bpp == 0) {
 		SET_ERROR(upng, UPNG_EMALFORMED);
 		return;
 	}
 
-	if (bpp < 8 && a * bpp != ((a * bpp + 7) / 8) * 8) {
-		unfilter(upng, in, in, a, m, bpp);
+	if (bpp < 8 && w * bpp != ((w * bpp + 7) / 8) * 8) {
+		unfilter(upng, in, in, w, h, bpp);
 		if (upng->error != UPNG_EOK) {
 			return;
 		}
-		remove_padding_bits(out, in, a * bpp, ((a * bpp + 7) / 8) * 8, m);
+		remove_padding_bits(out, in, w * bpp, ((w * bpp + 7) / 8) * 8, h);
 	} else {
-		unfilter(upng, out, in, a, m, bpp);
+		unfilter(upng, out, in, w, h, bpp);
 	}
 }
 
@@ -868,19 +881,19 @@ upng_error upng_header(upng_t* upng)
 		return upng->error;
 	}
 
-	/* checking the first chunk, IHDR chunk */
+	/* check that the first chunk is the IHDR chunk */
 	if (MAKE_DWORD_PTR(upng->source.buffer + 12) != CHUNK_IHDR) {
 		SET_ERROR(upng, UPNG_EMALFORMED);
 		return upng->error;
 	}
 
-	/* Read the values given in the header */
+	/* read the values given in the header */
 	upng->width = MAKE_DWORD_PTR(upng->source.buffer + 16);
 	upng->height = MAKE_DWORD_PTR(upng->source.buffer + 20);
 	upng->color_depth = upng->source.buffer[24];
 	upng->color_type = (upng_color)upng->source.buffer[25];
 
-	/* Determine the color format */
+	/* determine our color format */
 	upng->format = determine_format(upng);
 	if (upng->format == UPNG_BADFORMAT) {
 		SET_ERROR(upng, UPNG_EUNFORMAT);
@@ -892,13 +905,13 @@ upng_error upng_header(upng_t* upng)
 		return upng->error;
 	}
 
-	/* checking the compression method (byte 27) */
+	/* check that the compression method (byte 27) is 0 (only allowed value in spec) */
 	if (upng->source.buffer[27] != 0) {
 		SET_ERROR(upng, UPNG_EMALFORMED);
 		return upng->error;
 	}
 
-	/* checking the compression method */
+	/* check that the compression method (byte 27) is 0 (spec allows 1, but uPNG does not support it) */
 	if (upng->source.buffer[28] != 0) {
 		SET_ERROR(upng, UPNG_EUNINTERLACED);
 		return upng->error;
@@ -908,7 +921,7 @@ upng_error upng_header(upng_t* upng)
 	return upng->error;
 }
 
-/* Read a PNG, result will be the same color type */
+/*read a PNG, the result will be in the same color type as the PNG (hence "generic")*/
 upng_error upng_decode(upng_t* upng)
 {
 	const unsigned char *chunk, *data;
@@ -921,56 +934,56 @@ upng_error upng_decode(upng_t* upng)
 
 	(void)*data;
 
-	/* if had an error state, bail */
+	/* if we have an error state, bail now */
 	if (upng->error != UPNG_EOK) {
 		return upng->error;
 	}
 
-	/* If necessary Parse the main header */
+	/* parse the main header, if necessary */
 	upng_header(upng);
 	if (upng->error != UPNG_EOK) {
 		return upng->error;
 	}
 
-	/* If state is not Header then stop */
+	/* if the state is not HEADER (meaning we are ready to decode the image), stop now */
 	if (upng->state != UPNG_HEADER) {
 		return upng->error;
 	}
 
-	/* issue old result */
+	/* release old result, if any */
 	if (upng->buffer != 0) {
 		free(upng->buffer);
 		upng->buffer = 0;
 		upng->size = 0;
 	}
 
-	/*  No. one byte of first chunk after hte header */
+	/* first byte of the first chunk after the header */
 	chunk = upng->source.buffer + 33;
 
-	/* scan through the chunks and find the size of all IDAT chunks,
-	* and verify the general well-formed-ness */
+	/* scan through the chunks, finding the size of all IDAT chunks, and also
+	 * verify general well-formed-ness */
 	while (chunk < upng->source.buffer + upng->source.size) {
 
-		/* make sure chunk header is not grether than the total compressed */
+		/* make sure chunk header is not larger than the total compressed */
 		if ((unsigned long)(chunk - upng->source.buffer + 12) > upng->source.size) {
 			SET_ERROR(upng, UPNG_EMALFORMED);
 			return upng->error;
 		}
 
-		/* get length, checking with sanity */
+		/* get length; sanity check it */
 		length = upng_chunk_length(chunk);
 		if (length > INT_MAX) {
 			SET_ERROR(upng, UPNG_EMALFORMED);
 			return upng->error;
 		}
 
-		/* make sure that the chunk header+paylaod is not greater than that the total compressed */
+		/* make sure chunk header+paylaod is not larger than the total compressed */
 		if ((unsigned long)(chunk - upng->source.buffer + length + 12) > upng->source.size) {
 			SET_ERROR(upng, UPNG_EMALFORMED);
 			return upng->error;
 		}
 
-		/* get a pointer to payload */
+		/* get pointer to payload */
 		data = chunk + 8;
 
 		/* parse chunks */
@@ -986,15 +999,15 @@ upng_error upng_decode(upng_t* upng)
 		chunk += upng_chunk_length(chunk) + 12;
 	}
 
-	/* set aside enough space for the image data */
+	/* allocate enough space for the (compressed and filtered) image data */
 	compressed = (unsigned char*)malloc(compressed_size);
 	if (compressed == NULL) {
 		SET_ERROR(upng, UPNG_ENOMEM);
 		return upng->error;
 	}
 
-	/* scan through the chunks, this time copying the vals into our compressed buff.
-	* and no reason to validate anything for the second time. */
+	/* scan through the chunks again, this time copying the values into
+	 * our compressed buffer.  there's no reason to validate anything a second time. */
 	chunk = upng->source.buffer + 33;
 	while (chunk < upng->source.buffer + upng->source.size) {
 		unsigned long length;

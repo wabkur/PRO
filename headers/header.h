@@ -1,7 +1,6 @@
 #ifndef HEADER_H
 #define HEADER_H
 
-/* standard library*/
 #include <SDL2/SDL.h>
 #include <stdint.h>
 #include <math.h>
@@ -64,15 +63,15 @@ int getMapValue(int row, int col);
 
 /**
  * struct player_s - struct for the textures
- * @x: ..
- * @y: ..
- * @width: ..
- * @height: ..
- * @turnDirection: ..
- * @walkDirection: ..
- * @rotationAngle: ..
- * @walkSpeed: ..
- * @turnSpeed: ..
+ * @x: x coordinate
+ * @y: y coordinate
+ * @width: player width
+ * @height: player height
+ * @turnDirection: Turn Direction
+ * @walkDirection: Walk Direction
+ * @rotationAngle: player rotation angle
+ * @walkSpeed: walk speed
+ * @turnSpeed: turn speed
  */
 
 typedef struct player_s
@@ -97,10 +96,10 @@ void renderPlayer(void);
 
 /**
  * struct ray_s - struct for the textures
- * @rayAngle: ..
- * @wallHitX: ..
- * @wallHitY: ..
- * @distance: ..
+ * @rayAngle: ray angle
+ * @wallHitX: wall hit x coordinate
+ * @wallHitY: wall hit x coordinate
+ * @distance: ditance to the wall
  * @wasHitVertical: verify hit vertical
  * @wallHitContent: wall hit content
  */
@@ -132,9 +131,9 @@ void vertIntersection(float rayAngle);
 
 /**
  * struct texture_s - struct for the textures
- * @width: ..
- * @height: ..
- * @texture_buffer: ..
+ * @width: texture width
+ * @height: texture height
+ * @texture_buffer: pointer to texture buffer
  * @upngTexture: pointer to upng buffer
  *
  */
@@ -147,7 +146,7 @@ typedef struct texture_s
 	upng_t *upngTexture;
 } texture_t;
 
-extern texture_t wallTextures[NUM_TEXTURES];
+texture_t wallTextures[NUM_TEXTURES];
 
 void WallTexturesready(void);
 void freeWallTextures(void);

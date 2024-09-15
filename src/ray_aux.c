@@ -2,11 +2,11 @@
 
 /**
  * distanceBetweenPoints - Finds horizontal intersection with the wall
- * @x1: ..
- * @y1: ..
- * @x2: ..
- * @y2: ..
- * Return: The distance between two points.
+ * @x1: x coordinate of the starting point
+ * @y1: y coordinate oh the starting point
+ * @x2: x coordinate of the end point
+ * @y2: y coordinate of the end point
+ * Return: the distance between two points
  */
 
 float distanceBetweenPoints(float x1, float y1, float x2, float y2)
@@ -16,7 +16,7 @@ float distanceBetweenPoints(float x1, float y1, float x2, float y2)
 
 /**
  * isRayFacingDown - check if the ray is facing down
- * @angle: ..
+ * @angle: current ray angle
  * Return: true or false
  */
 
@@ -27,7 +27,7 @@ bool isRayFacingDown(float angle)
 
 /**
  * isRayFacingUp - check if the ray is facing up
- * @angle: ..
+ * @angle: current ray angle
  * Return: true or false
  */
 
@@ -38,7 +38,7 @@ bool isRayFacingUp(float angle)
 
 /**
  * isRayFacingRight - check if the ray is facing to the right
- * @angle: ..
+ * @angle: current ray angle
  * Return: true or false
  */
 
@@ -49,7 +49,7 @@ bool isRayFacingRight(float angle)
 
 /**
  * isRayFacingLeft - check if the ray is facing to the right
- * @angle: ..
+ * @angle: current ray angle
  * Return: true or false
  */
 

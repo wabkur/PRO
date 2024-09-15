@@ -2,35 +2,35 @@
 
 /**
  * drawRect - draw a rectangle
- * @x: ..
- * @y: ..
- * @width: ..
- * @height: ..
+ * @x: x coordinate
+ * @y: y coordinate
+ * @width: rectangle width
+ * @height: rectangle height
  * @color: pixel color
 */
 
 void drawRect(int x, int y, int width, int height, color_t color)
 {
-	int w, r;
+	int i, j;
 
-	for (w = x; w <= (x + width); w++)
-		for (r = y; r <= (y + height); r++)
-			drawPixel(w, r, color);
+	for (i = x; i <= (x + width); i++)
+		for (j = y; j <= (y + height); j++)
+			drawPixel(i, j, color);
 }
 
 /**
- * drawLine - Draw line
- * @x0: x ..
- * @y0: y ..
- * @x1: x ..
- * @y1: y ..
+ * drawLine - draw a line
+ * @x0: x coordinate init
+ * @y0: y coordinate init
+ * @x1: x coordinate init
+ * @y1: y coordinate end
  * @color: pixel color
 */
 
 void drawLine(int x0, int y0, int x1, int y1, color_t color)
 {
 	float xIncrement, yIncrement, currentX, currentY;
-	int w, longestSideLength, deltaX,  deltaY;
+	int i, longestSideLength, deltaX,  deltaY;
 
 	deltaX = (x1 - x0);
 	deltaY = (y1 - y0);
@@ -43,7 +43,7 @@ void drawLine(int x0, int y0, int x1, int y1, color_t color)
 	currentX = x0;
 	currentY = y0;
 
-	for (w = 0; w < longestSideLength; w++)
+	for (i = 0; i < longestSideLength; i++)
 	{
 		drawPixel(round(currentX), round(currentY), color);
 		currentX += xIncrement;

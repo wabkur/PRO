@@ -5,7 +5,7 @@ int TicksLastFrame;
 player_t player;
 
 /**
- * setup_game - Initialize player variables and load wall textures
+ * setup_game - initialize player variables and load wall textures
  *
 */
 
@@ -14,7 +14,7 @@ void setup_game(void)
 
 	player.x = SCREEN_WIDTH / 2;
 	player.y = SCREEN_HEIGHT / 2;
-	player.width = 10;
+	player.width = 1;
 	player.height = 30;
 	player.walkDirection = 0;
 	player.walkSpeed = 100;
@@ -30,7 +30,6 @@ void setup_game(void)
  *          the player movement and the ray casting
  *
 */
-
 void update_game(void)
 {
 	float DeltaTime;
@@ -49,7 +48,7 @@ void update_game(void)
 }
 
 /**
- * render - calls all functions that are needed for on-screen.
+ * render - calls all functions needed for on-screen rendering
  *
 */
 
@@ -67,10 +66,9 @@ void render_game(void)
 }
 
 /**
- * Destroy - Free wall textures and destroy windows.
+ * Destroy - free wall textures and destroy window
  *
 */
-
 void destroy_game(void)
 {
 	freeWallTextures();
@@ -82,8 +80,10 @@ void destroy_game(void)
  * Return: 0
 */
 
-int main(void)
+int main(int argc, char *argv[])
 {
+	(void)argc;
+    (void)argv;
 	GameRunning = initializeWindow();
 
 	setup_game();

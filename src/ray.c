@@ -1,4 +1,5 @@
 #include "../headers/header.h"
+#include <float.h>
 
 ray_t rays[NUM_RAYS];
 
@@ -9,7 +10,7 @@ static int horzWallContent, vertWallContent;
 
 /**
  * horzIntersection - Finds horizontal intersection with the wall
- * @rayAngle: ..
+ * @rayAngle: current ray angle
  *
  */
 
@@ -54,7 +55,7 @@ void horzIntersection(float rayAngle)
 
 /**
  * vertIntersection - Finds vertical intersection with the wall
- * @rayAngle: ..
+ * @rayAngle: current ray angle
  *
  */
 
@@ -101,8 +102,8 @@ void vertIntersection(float rayAngle)
 
 /**
  * castRay - casting of each ray
- * @rayAngle: ..
- * @stripId: ..
+ * @rayAngle: current ray angle
+ * @stripId: ray strip identifier
  */
 
 void castRay(float rayAngle, int stripId)
@@ -163,21 +164,21 @@ void castAllRays(void)
 }
 
 /**
- * renderRays - drawing all the rays
+ * renderRays - draw all the rays
  *
  */
 
 void renderRays(void)
 {
-	int w;
+	int i;
 
-	for (w = 0; w < NUM_RAYS; w += 50)
+	for (i = 0; i < NUM_RAYS; i += 50)
 	{
 		drawLine(
 			player.x * MINIMAP_SCALE_FACTOR,
 			player.y * MINIMAP_SCALE_FACTOR,
-			rays[w].wallHitX * MINIMAP_SCALE_FACTOR,
-			rays[w].wallHitY * MINIMAP_SCALE_FACTOR,
+			rays[i].wallHitX * MINIMAP_SCALE_FACTOR,
+			rays[i].wallHitY * MINIMAP_SCALE_FACTOR,
 			0xFF0000FF
 		);
 	}
